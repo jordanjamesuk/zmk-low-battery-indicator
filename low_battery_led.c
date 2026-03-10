@@ -12,7 +12,7 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
 
-#define LOW_BATTERY_THRESHOLD 10
+#define LOW_BATTERY_THRESHOLD 100
 #define LED_NODE DT_ALIAS(low_battery_led)
 
 #if !DT_NODE_EXISTS(LED_NODE)
