@@ -27,7 +27,7 @@ static int low_battery_led_init(void) {
         return -ENODEV;
     }
 
-    int ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
+    int ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
     if (ret < 0) {
         return ret;
     }
