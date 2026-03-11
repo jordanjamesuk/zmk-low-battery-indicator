@@ -12,12 +12,10 @@
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
 
-#define LOW_BATTERY_THRESHOLD 100
+#define LOW_BATTERY_THRESHOLD 10
 #define LED_NODE DT_ALIAS(low_battery_led)
 
-#if !DT_NODE_EXISTS(LED_NODE)
-#error "Device tree alias 'low-battery-led' not found"
-#endif
+#if DT_NODE_EXISTS(LED_NODE)
 
 static const struct gpio_dt_spec led = GPIO_DT_SPEC_GET(LED_NODE, gpios);
 static bool led_initialized = false;
@@ -27,7 +25,7 @@ static int low_battery_led_init(void) {
         return -ENODEV;
     }
 
-    int ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_ACTIVE);
+    int ret = gpio_pin_configure_dt(&led, GPIO_OUTPUT_INACTIVE);
     if (ret < 0) {
         return ret;
     }
@@ -61,3 +59,5 @@ static int battery_listener(const zmk_event_t *eh) {
 
 ZMK_LISTENER(low_battery_led, battery_listener);
 ZMK_SUBSCRIPTION(low_battery_led, zmk_battery_state_changed);
+
+#endif /* DT_NODE_EXISTS(LED_NODE) */
