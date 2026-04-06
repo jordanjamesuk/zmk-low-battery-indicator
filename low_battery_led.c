@@ -6,6 +6,8 @@
  * USB unplugged  + battery <= 10%  → LED solid on (low battery)
  * USB unplugged  + battery > 10%   → LED off (normal)
  *
+ * Detects USB power via nRF52840 POWER peripheral (no USB stack needed).
+ *
  * SPDX-License-Identifier: MIT
  */
 
@@ -14,10 +16,10 @@
 #include <zephyr/devicetree.h>
 #include <zephyr/drivers/pwm.h>
 
+#include <hal/nrf_power.h>
+
 #include <zmk/event_manager.h>
 #include <zmk/events/battery_state_changed.h>
-#include <zmk/events/usb_conn_state_changed.h>
-#include <zmk/usb.h>
 
 #define LOW_BATTERY_THRESHOLD 10
 #define LED_NODE DT_ALIAS(low_battery_led)
@@ -32,7 +34,6 @@
 static const struct pwm_dt_spec led = PWM_DT_SPEC_GET(LED_NODE);
 static bool led_initialized = false;
 
-static bool usb_connected = false;
 static uint8_t battery_level = 0;
 
 /* Breathing state */
@@ -41,6 +42,10 @@ static bool breathe_rising = true;
 
 static void breathe_timer_cb(struct k_timer *timer);
 K_TIMER_DEFINE(breathe_timer, breathe_timer_cb, NULL);
+
+static bool is_usb_power_present(void) {
+    return (NRF_POWER->USBREGSTATUS & POWER_USBREGSTATUS_VBUSDETECT_Msk) != 0;
+}
 
 static void set_led_brightness(uint32_t pulse) {
     if (!led_initialized) {
@@ -74,8 +79,9 @@ enum led_mode {
 
 static void update_led_state(void) {
     enum led_mode mode;
+    bool usb_power = is_usb_power_present();
 
-    if (usb_connected) {
+    if (usb_power) {
         mode = (battery_level < 100) ? LED_BREATHE : LED_OFF;
     } else {
         mode = (battery_level <= LOW_BATTERY_THRESHOLD) ? LED_SOLID : LED_OFF;
@@ -103,8 +109,27 @@ static int low_battery_led_init(void) {
         return -ENODEV;
     }
 
-    pwm_set_pulse_dt(&led, 0);
     led_initialized = true;
+
+    /* DEBUG: blink once to confirm LED works */
+    set_led_brightness(led.period);
+    k_msleep(500);
+    set_led_brightness(0);
+    k_msleep(300);
+
+    /* DEBUG: blink twice more if VBUS detected */
+    if (is_usb_power_present()) {
+        set_led_brightness(led.period);
+        k_msleep(200);
+        set_led_brightness(0);
+        k_msleep(200);
+        set_led_brightness(led.period);
+        k_msleep(200);
+        set_led_brightness(0);
+    }
+
+    /* Now run real state logic */
+    update_led_state();
 
     return 0;
 }
@@ -127,26 +152,7 @@ static int battery_listener(const zmk_event_t *eh) {
     return ZMK_EV_EVENT_BUBBLE;
 }
 
-static int usb_listener(const zmk_event_t *eh) {
-    if (!led_initialized) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    const struct zmk_usb_conn_state_changed *ev = as_zmk_usb_conn_state_changed(eh);
-    if (ev == NULL) {
-        return ZMK_EV_EVENT_BUBBLE;
-    }
-
-    usb_connected = (ev->conn_state == ZMK_USB_CONN_HID);
-    update_led_state();
-
-    return ZMK_EV_EVENT_BUBBLE;
-}
-
 ZMK_LISTENER(low_battery_led, battery_listener);
 ZMK_SUBSCRIPTION(low_battery_led, zmk_battery_state_changed);
-
-ZMK_LISTENER(low_battery_led_usb, usb_listener);
-ZMK_SUBSCRIPTION(low_battery_led_usb, zmk_usb_conn_state_changed);
 
 #endif /* DT_NODE_EXISTS(LED_NODE) */
