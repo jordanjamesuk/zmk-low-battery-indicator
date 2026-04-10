@@ -104,32 +104,14 @@ static void update_led_state(void) {
     }
 }
 
+/* DEBUG: set LED to full brightness to verify PWM works */
 static int low_battery_led_init(void) {
     if (!pwm_is_ready_dt(&led)) {
         return -ENODEV;
     }
 
     led_initialized = true;
-
-    /* DEBUG: blink once to confirm LED works */
     set_led_brightness(led.period);
-    k_msleep(500);
-    set_led_brightness(0);
-    k_msleep(300);
-
-    /* DEBUG: blink twice more if VBUS detected */
-    if (is_usb_power_present()) {
-        set_led_brightness(led.period);
-        k_msleep(200);
-        set_led_brightness(0);
-        k_msleep(200);
-        set_led_brightness(led.period);
-        k_msleep(200);
-        set_led_brightness(0);
-    }
-
-    /* Now run real state logic */
-    update_led_state();
 
     return 0;
 }
